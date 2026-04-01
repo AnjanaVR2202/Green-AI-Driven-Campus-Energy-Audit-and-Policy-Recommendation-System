@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electricity Usage Predictor</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gravitas+One&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        select, input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        .error {
+            color: #e74c3c;
+            background-color: #ffe6e6;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .success {
+            color: #27ae60;
+            background-color: #e6ffe6;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+       
+        .plot img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        #one{
+            color: #27ae60;
+            font-family: "Gravitas One", serif;
+  font-weight: 400;
+  font-style: normal;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 id="one"> GREEN AI ENERGY AUDITOR</h1>
+        
+       
+        
+        <form id="predictionForm">
+            <div class="form-group">
+                <label for="building">Select Building:</label>
+                <select id="building" name="building" required>
+                    <option value="">-- Select a Building --</option>
+                    {% for building in buildings %}
+                    <option value="{{ building }}">{{ building }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="actual_usage">Today's Actual Usage (kWh):</label>
+                <input type="number" id="actual_usage" name="actual_usage" step="0.01" min="0" required>
+            </div>
+            
+            <button type="submit">Analyze Usage</button>
+        </form>
+        
+        <div id="result" class="result" style="display: none;">
+            <div id="errorMessage" class="error" style="display: none;"></div>
+            <div id="successMessage" class="success" style="display: none;"></div>
+            
+            <div id="plotContainer" class="plot"></div>
+            
+            <h3>Analysis Details</h3>
+            <div id="details"></div>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('predictionForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const building = document.getElementById('building').value;
+            const actualUsage = document.getElementById('actual_usage').value;
+            
+            // Show loading state
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
+           
+            document.getElementById('details').innerHTML = 'Loading...';
+            
+            // Make AJAX request
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `building=${encodeURIComponent(building)}&actual_usage=${encodeURIComponent(actualUsage)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('errorMessage').innerHTML = `Error: ${data.error}`;
+                    document.getElementById('errorMessage').style.display = 'block';
+                    return;
+                }
+                
+                // Display results
+                
+                document.getElementById('successMessage').style.display = 'block';
+                
+                
+                // Display details
+                let detailsHtml = `
+                    <table style="width:100%; border-collapse: collapse;">
+                        <tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>Building:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.building}</td></tr>
+                        <tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>Date:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.date}</td></tr>
+                        <tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>Predicted Usage:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.predicted_usage} kWh</td></tr>
+                        <tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>Actual Usage:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.actual_usage} kWh</td></tr>
+                        <tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>Prediction Error:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.prediction_error > 0 ? '+' : ''}${data.prediction_error} kWh (${data.error_percentage > 0 ? '+' : ''}${data.error_percentage}%)</td></tr>
+                        <tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>Anomaly Level:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.anomaly_level.toUpperCase()}</td></tr>
+                        <tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>Weather:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.weather_temperature}°C, ${data.weather_humidity}% humidity</td></tr>
+                `;
+                
+                if (data.baselines) {
+                    detailsHtml += `
+                        <tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>Overall Baseline:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.baselines.overall} kWh</td></tr>
+                        <tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>${data.baselines.day_type_name} Baseline:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.baselines.day_type} kWh</td></tr>
+                    `;
+                    
+                    if (data.baselines.temperature) {
+                        detailsHtml += `<tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>${data.baselines.temperature.type} Weather Baseline:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.baselines.temperature.value} kWh</td></tr>`;
+                    }
+                    
+                    if (data.baselines.season) {
+                        detailsHtml += `<tr><td style="padding:8px; border-bottom:1px solid #ddd;"><strong>${data.baselines.season.type} Season Baseline:</strong></td><td style="padding:8px; border-bottom:1px solid #ddd;">${data.baselines.season.value} kWh</td></tr>`;
+                    }
+                }
+                
+                detailsHtml += `</table>`;
+                
+                if (data.recommendations && data.recommendations.length > 0) {
+                    detailsHtml += `<h4>Recommendations:</h4><ul>`;
+                    data.recommendations.forEach(rec => {
+                        detailsHtml += `<li>${rec}</li>`;
+                    });
+                    detailsHtml += `</ul>`;
+                }
+                
+                document.getElementById('details').innerHTML = detailsHtml;
+            })
+            .catch(error => {
+                document.getElementById('errorMessage').innerHTML = `Request failed: ${error}`;
+                document.getElementById('errorMessage').style.display = 'block';
+            });
+        });
+        
+        // Check system status on page load
+        fetch('/status')
+            .then(response => response.json())
+            .then(data => {
+                const statusDiv = document.getElementById('statusMessage');
+                if (data.initialized) {
+                    statusDiv.innerHTML = `<div class="success">✅ System Ready - ${data.models_trained} models loaded</div>`;
+                } else {
+                    statusDiv.innerHTML = `<div class="error">⚠️ System Not Initialized</div>`;
+                }
+            });
+    </script>
+</body>
+</html>
